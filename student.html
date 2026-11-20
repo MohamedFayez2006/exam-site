@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>صفحة الطالب</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="page">
+    <section class="login">
+      <h1>صفحة الطالب</h1>
+      <p class="sub" id="who">جاري التحقق...</p>
+      <button id="out">تسجيل الخروج</button>
+    </section>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="config.js"></script>
+  <script>
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    (async () => {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return location.replace("index.html");
+      const { data: p } = await sb.from("profiles")
+        .select("full_name, role").eq("id", session.user.id).single();
+      if (!p || p.role !== "student") return location.replace("index.html");
+      document.getElementById("who").textContent = "أهلاً " + p.full_name + " (صفحة مؤقتة، هنبنيها في الخطوة الجاية)";
+    })();
+    document.getElementById("out").onclick = async () => {
+      await sb.auth.signOut();
+      location.replace("index.html");
+    };
+  </script>
+</body>
+</html>
