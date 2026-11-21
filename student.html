@@ -1,35 +1,65 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>صفحة الطالب</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>امتحاناتي | منصة الامتحانات</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+.wrap{max-width:720px;margin:0 auto;padding:20px 16px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:20px}
+.top h1{margin:0;font-size:1.5rem}
+.card{background:var(--card);border:1px solid var(--line);border-inline-start:5px solid var(--accent);border-radius:6px;padding:16px;margin-bottom:12px}
+.card h2{margin:0 0 4px;font-size:1.15rem}
+.card p{margin:2px 0;color:var(--muted)}
+.card .act{margin-top:12px}
+.btn{display:inline-block;width:auto;padding:10px 20px;border-radius:6px;background:var(--accent-dark);color:#fff;text-decoration:none;font-weight:700}
+@media (prefers-color-scheme:dark){.btn{color:#08202a}}
+.ghost{width:auto;padding:8px 16px;background:transparent;color:var(--ink);border:1px solid var(--line)}
+.tag{font-size:.85rem;border:1px solid var(--line);border-radius:4px;padding:2px 8px}
+</style>
 </head>
 <body>
-  <main class="page">
-    <section class="login">
-      <h1>صفحة الطالب</h1>
-      <p class="sub" id="who">جاري التحقق...</p>
-      <button id="out">تسجيل الخروج</button>
-    </section>
-  </main>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-  <script src="config.js"></script>
-  <script>
-    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    (async () => {
-      const { data: { session } } = await sb.auth.getSession();
-      if (!session) return location.replace("index.html");
-      const { data: p } = await sb.from("profiles")
-        .select("full_name, role").eq("id", session.user.id).single();
-      if (!p || p.role !== "student") return location.replace("index.html");
-      document.getElementById("who").textContent = "أهلاً " + p.full_name + " (صفحة مؤقتة، هنبنيها في الخطوة الجاية)";
-    })();
-    document.getElementById("out").onclick = async () => {
-      await sb.auth.signOut();
-      location.replace("index.html");
-    };
-  </script>
+<div class="wrap">
+  <div class="top"><h1 id="hi">امتحاناتي</h1><button class="ghost" onclick="logout()">تسجيل الخروج</button></div>
+  <div id="list">جاري التحميل...</div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="js/app.js"></script>
+<script>
+const fmt = (d) => d ? new Date(d).toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" }) : "—";
+(async () => {
+  const me = await requireRole("student");
+  if (!me) return;
+  $("#hi").textContent = "أهلًا " + me.full_name;
+  idleLogout(30);
+  await sb.rpc("finalize_expired");
+  const [ex, at, ap] = await Promise.all([
+    sb.from("exams").select("*").eq("is_published", true).order("opens_at", { nullsFirst: true }),
+    sb.from("attempts").select("exam_id,status,score").eq("student_id", me.id),
+    sb.from("retake_approvals").select("exam_id").eq("student_id", me.id).eq("used", false),
+  ]);
+  if (ex.error) return ($("#list").textContent = "تعذر تحميل الامتحانات: " + ex.error.message);
+  const now = Date.now();
+  $("#list").innerHTML = ex.data.map((x) => {
+    const mine = (at.data || []).filter((a) => a.exam_id === x.id);
+    const live = mine.find((a) => a.status === "in_progress");
+    const retake = (ap.data || []).some((r) => r.exam_id === x.id);
+    const open = (!x.opens_at || now >= +new Date(x.opens_at)) && (!x.closes_at || now <= +new Date(x.closes_at));
+    let act = "";
+    if (live) act = `<a class="btn" href="exam.html?e=${x.id}">استكمال الامتحان</a>`;
+    else if (!mine.length && open) act = `<a class="btn" href="exam.html?e=${x.id}">ابدأ الامتحان</a>`;
+    else if (mine.length && retake) act = `<a class="btn" href="exam.html?e=${x.id}">محاولة إضافية</a>`;
+    else if (!mine.length) act = `<span class="tag">${x.opens_at && now < +new Date(x.opens_at) ? "لسه ما فتحش" : "اتقفل"}</span>`;
+    else {
+      const last = mine[mine.length - 1];
+      act = `<span class="tag">تم التسليم</span> ` + (x.show_results && last.score != null ? `<b>النتيجة: ${last.score}</b>` : `<span class="tag">النتيجة لم تُعلن</span>`);
+    }
+    return `<div class="card"><h2>${esc(x.title)}</h2><p>المدة: ${x.duration_minutes} دقيقة</p><p>يفتح: ${fmt(x.opens_at)} — يقفل: ${fmt(x.closes_at)}</p><div class="act">${act}</div></div>`;
+  }).join("") || "<p>مفيش امتحانات متاحة دلوقتي.</p>";
+})();
+</script>
 </body>
 </html>
