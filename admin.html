@@ -1,35 +1,327 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>لوحة الأدمن</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>لوحة الأدمن | منصة الامتحانات</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+.admin{max-width:1100px;margin:0 auto;padding:16px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.top h1{margin:0;font-size:1.5rem}
+.admin button{width:auto;padding:8px 14px}
+nav{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:20px;overflow-x:auto}
+nav a{padding:10px 16px;color:var(--muted);text-decoration:none;font-weight:600;border-bottom:3px solid transparent;white-space:nowrap}
+nav a[aria-current=page]{color:var(--ink);border-color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;align-items:end;margin-bottom:12px}
+.admin input,.admin select,.admin textarea{margin:0}
+select,textarea{width:100%;font:inherit;color:inherit;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:10px 12px}
+.panel{margin-bottom:20px}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:start;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-size:.85rem}
+.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.danger{background:var(--danger)}
+.msg.good{color:var(--accent-dark)}
+.tag{font-size:.8rem;border:1px solid var(--line);border-radius:4px;padding:1px 7px;white-space:nowrap}
+.row{display:flex;gap:6px;flex-wrap:wrap}
+.chk{display:flex;gap:8px;align-items:center;font-weight:400}.chk input{width:auto}
+details summary{cursor:pointer;font-weight:600;margin-bottom:10px}
+h2{margin:0 0 14px;font-size:1.2rem}
+.ans{border:1px solid var(--line);border-radius:6px;padding:10px;margin-bottom:8px}
+.ans input{width:90px}
+[hidden]{display:none!important}
+</style>
 </head>
 <body>
-  <main class="page">
-    <section class="login">
-      <h1>لوحة الأدمن</h1>
-      <p class="sub" id="who">جاري التحقق...</p>
-      <button id="out">تسجيل الخروج</button>
-    </section>
-  </main>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-  <script src="config.js"></script>
-  <script>
-    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    (async () => {
-      const { data: { session } } = await sb.auth.getSession();
-      if (!session) return location.replace("index.html");
-      const { data: p } = await sb.from("profiles")
-        .select("full_name, role").eq("id", session.user.id).single();
-      if (!p || p.role !== "admin") return location.replace("index.html");
-      document.getElementById("who").textContent = "أهلاً " + p.full_name + " (صفحة مؤقتة، هنبنيها في الخطوة الجاية)";
-    })();
-    document.getElementById("out").onclick = async () => {
-      await sb.auth.signOut();
-      location.replace("index.html");
-    };
-  </script>
+<div class="admin">
+  <div class="top"><h1>لوحة الأدمن</h1><div><span id="who"></span> <button class="ghost" onclick="logout()">تسجيل الخروج</button></div></div>
+  <nav><a href="#students">الطلاب</a><a href="#exams">الامتحانات</a><a href="#questions">الأسئلة</a><a href="#results">النتائج والمراقبة</a></nav>
+
+  <section id="students" hidden>
+    <form class="panel" id="stForm">
+      <h2>إضافة طالب</h2>
+      <div class="grid">
+        <div><label for="sName">الاسم الكامل</label><input id="sName" required></div>
+        <div><label for="sUser">اسم المستخدم (إنجليزي)</label><input id="sUser" dir="ltr" required></div>
+        <div><label for="sSeat">رقم الجلوس</label><input id="sSeat" dir="ltr" required></div>
+        <div><label for="sGrade">الصف</label><input id="sGrade" required></div>
+      </div>
+      <button type="submit">إضافة</button>
+      <details style="margin-top:14px"><summary>إضافة مجموعة (سطر لكل طالب)</summary>
+        <textarea id="bulk" rows="5" dir="auto" placeholder="الاسم, username, رقم الجلوس, الصف"></textarea>
+        <p class="hint" style="margin:6px 0 10px">مثال: انور احمد, anwar.ahmed, 1001, الصف الأول</p>
+        <button type="button" id="bulkBtn">إضافة المجموعة</button></details>
+      <p class="msg" id="stMsg" role="alert"></p>
+    </form>
+    <div class="panel">
+      <div class="grid"><div><label for="stSearch">بحث</label><input id="stSearch" placeholder="اسم أو username أو رقم جلوس"></div></div>
+      <div class="tw"><table><thead><tr><th>الاسم</th><th>Username</th><th>رقم الجلوس</th><th>الصف</th><th>الحالة</th><th></th></tr></thead><tbody id="stBody"></tbody></table></div>
+    </div>
+  </section>
+
+  <section id="exams" hidden>
+    <form class="panel" id="exForm">
+      <h2>إنشاء امتحان</h2>
+      <div class="grid">
+        <div><label for="eTitle">العنوان</label><input id="eTitle" required></div>
+        <div><label for="eDur">المدة (دقيقة)</label><input id="eDur" type="number" min="1" value="60" required></div>
+        <div><label for="eOpen">يفتح في</label><input id="eOpen" type="datetime-local"></div>
+        <div><label for="eClose">يقفل في</label><input id="eClose" type="datetime-local"></div>
+        <div><label for="eMax">المخالفات المسموحة</label><input id="eMax" type="number" min="1" value="3" required></div>
+      </div>
+      <label for="eInstr">تعليمات الامتحان (اختياري)</label><textarea id="eInstr" rows="3"></textarea>
+      <div class="row" style="margin:12px 0"><label class="chk"><input type="checkbox" id="eShuf" checked> خلط الأسئلة والاختيارات</label></div>
+      <button type="submit">إنشاء</button>
+      <p class="msg" id="exMsg" role="alert"></p>
+    </form>
+    <div class="panel tw"><table><thead><tr><th>العنوان</th><th>المدة</th><th>الفتح / القفل</th><th>مخالفات</th><th>الحالة</th><th></th></tr></thead><tbody id="exBody"></tbody></table></div>
+  </section>
+
+  <section id="questions" hidden>
+    <div class="panel"><div class="grid"><div><label for="qExam">الامتحان</label><select id="qExam"></select></div></div></div>
+    <form class="panel" id="qForm">
+      <h2>إضافة سؤال</h2>
+      <div class="grid">
+        <div><label for="qType">النوع</label><select id="qType"><option value="tf">صح / غلط</option><option value="mcq">اختياري</option><option value="essay">مقالي</option></select></div>
+        <div><label for="qPts">الدرجة</label><input id="qPts" type="number" min="0" step="0.5" value="1" required></div>
+      </div>
+      <label for="qBody">نص السؤال</label><textarea id="qBody" rows="3" required></textarea>
+      <div id="qOptWrap" hidden style="margin-top:12px"><label for="qOpts">الاختيارات (سطر لكل اختيار)</label><textarea id="qOpts" rows="4"></textarea></div>
+      <div id="qAnsWrap" style="margin:12px 0"><label for="qAns">الإجابة الصحيحة</label><select id="qAns"></select></div>
+      <button type="submit">إضافة السؤال</button>
+      <details style="margin-top:14px"><summary>استيراد أسئلة من CSV</summary>
+        <p class="hint" style="margin:0 0 8px">كل سطر: النوع (tf/mcq/essay) ، السؤال ، الدرجة ، الإجابة الصحيحة ، الاختيارات مفصولة بـ | . مثال:<br><span dir="ltr">mcq, عاصمة مصر؟, 1, القاهرة, القاهرة|الإسكندرية|أسوان</span><br><span dir="ltr">tf, الأرض كروية, 1, true</span></p>
+        <textarea id="qCsv" rows="5" dir="auto"></textarea><p></p><button type="button" id="qCsvBtn">استيراد</button></details>
+      <p class="msg" id="qMsg" role="alert"></p>
+    </form>
+    <div class="panel tw"><table><thead><tr><th>#</th><th>السؤال</th><th>النوع</th><th>الإجابة</th><th>الدرجة</th><th></th></tr></thead><tbody id="qBody2"></tbody></table></div>
+  </section>
+
+  <section id="results" hidden>
+    <div class="panel">
+      <div class="grid">
+        <div><label for="rExam">الامتحان</label><select id="rExam"></select></div>
+        <div class="row"><button class="ghost" id="rRefresh">تحديث</button><button class="ghost" id="rCsv">تصدير CSV</button></div>
+      </div>
+      <div class="row"><label class="chk"><input type="checkbox" id="rShow"> إظهار النتيجة للطلاب في هذا الامتحان</label></div>
+      <p class="msg" id="rMsg" role="alert"></p>
+      <div class="tw"><table><thead><tr><th>الطالب</th><th>الصف</th><th>المحاولة</th><th>الحالة</th><th>الدرجة</th><th>مخالفات</th><th>التسليم</th><th></th></tr></thead><tbody id="rBody"></tbody></table></div>
+    </div>
+    <div class="panel" id="detail" hidden></div>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="js/app.js"></script>
+<script>
+const TYPES = { tf: "صح/غلط", mcq: "اختياري", essay: "مقالي" };
+const VT = { tab_hidden: "غيّر التبويب", window_blur: "خرج من النافذة", fullscreen_exit: "خرج من ملء الشاشة", page_left: "حدّث/ترك الصفحة" };
+let me, students = [], exams = [], questions = [], attempts = [], liveIv;
+const fmt = (d) => d ? new Date(d).toLocaleString("ar-EG", { dateStyle: "short", timeStyle: "short" }) : "—";
+const iso = (v) => v ? new Date(v).toISOString() : null;
+const examOpts = (sel, list) => { const keep = sel.value; sel.innerHTML = list.map((x) => `<option value="${x.id}">${esc(x.title)}</option>`).join("") || `<option value="">أنشئ امتحان الأول</option>`; if (keep) sel.value = keep; };
+async function loadExamList() { const { data } = await sb.from("exams").select("id,title,show_results").order("title"); exams = data || []; return exams; }
+
+function route() {
+  const h = (location.hash || "#students").slice(1);
+  document.querySelectorAll("section").forEach((s) => (s.hidden = s.id !== h));
+  document.querySelectorAll("nav a").forEach((a) => a.getAttribute("href") === "#" + h ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
+  clearInterval(liveIv);
+  if (h === "students") loadStudents();
+  if (h === "exams") loadExams();
+  if (h === "questions") initQuestions();
+  if (h === "results") { initResults(); liveIv = setInterval(loadResults, 15000); }
+}
+
+/* ---------- الطلاب ---------- */
+async function loadStudents() {
+  const { data, error } = await sb.from("profiles").select("id,full_name,username,seat_number,grade,is_active").eq("role", "student").order("full_name");
+  if (error) return show($("#stMsg"), "تعذر تحميل الطلاب: " + error.message);
+  students = data; renderStudents();
+}
+function renderStudents() {
+  const q = $("#stSearch").value.trim().toLowerCase();
+  $("#stBody").innerHTML = students.filter((s) => [s.full_name, s.username, s.seat_number].join(" ").toLowerCase().includes(q)).map((s) =>
+    `<tr><td>${esc(s.full_name)}</td><td dir="ltr">${esc(s.username)}</td><td dir="ltr">${esc(s.seat_number)}</td><td>${esc(s.grade)}</td>
+    <td><span class="tag">${s.is_active ? "مفعّل" : "معطّل"}</span></td>
+    <td class="row"><button class="ghost" data-edit="${s.id}">تعديل</button><button class="ghost" data-tog="${s.id}">${s.is_active ? "تعطيل" : "تفعيل"}</button><button class="danger" data-del="${s.id}">حذف</button></td></tr>`
+  ).join("") || `<tr><td colspan="6">لا يوجد طلاب.</td></tr>`;
+}
+async function callFn(body) {
+  const { data, error } = await sb.functions.invoke("dynamic-function", { body });
+  if (error) throw new Error(await fnError(error));
+  return data;
+}
+async function addStudents(list) {
+  const msg = $("#stMsg"); show(msg, "جاري الإضافة...");
+  try {
+    const d = await callFn({ action: "add", students: list });
+    const bad = d.results.filter((r) => !r.ok);
+    show(msg, `تمت إضافة ${d.results.length - bad.length} طالب.` + (bad.length ? " فشل: " + bad.map((b) => `${b.username} (${b.error})`).join("، ") : ""), !bad.length);
+    loadStudents();
+  } catch (e) { show(msg, "تعذرت الإضافة: " + e.message); }
+}
+$("#stForm").addEventListener("submit", async (e) => { e.preventDefault();
+  await addStudents([{ full_name: $("#sName").value, username: $("#sUser").value, seat_number: $("#sSeat").value, grade: $("#sGrade").value }]); e.target.reset(); });
+$("#bulkBtn").addEventListener("click", async () => {
+  const list = $("#bulk").value.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => { const [full_name, username, seat_number, grade] = l.split(/[,،]/).map((x) => x.trim()); return { full_name, username, seat_number, grade }; });
+  if (!list.length) return show($("#stMsg"), "اكتب سطر واحد على الأقل.");
+  await addStudents(list); $("#bulk").value = "";
+});
+$("#stSearch").addEventListener("input", renderStudents);
+$("#stBody").addEventListener("click", async (e) => {
+  const t = e.target, id = t.dataset.edit || t.dataset.tog || t.dataset.del; if (!id) return;
+  const s = students.find((x) => x.id === id), msg = $("#stMsg");
+  try {
+    if (t.dataset.edit) {
+      const full_name = prompt("الاسم الكامل:", s.full_name); if (full_name === null) return;
+      const grade = prompt("الصف:", s.grade); if (grade === null) return;
+      const seat = prompt("رقم الجلوس (غيّره لو عاوز، وده هيغيّر الباسورد):", s.seat_number); if (seat === null) return;
+      await callFn({ action: "update", id, full_name, grade, seat_number: seat === s.seat_number ? undefined : seat });
+    } else if (t.dataset.tog) await callFn({ action: "update", id, is_active: !s.is_active });
+    else { if (!confirm(`حذف ${s.full_name} نهائيًا؟`)) return; await callFn({ action: "delete", id }); }
+    show(msg, "تم.", true); loadStudents();
+  } catch (err) { show(msg, err.message); }
+});
+
+/* ---------- الامتحانات ---------- */
+async function loadExams() {
+  const { data, error } = await sb.from("exams").select("*").order("opens_at", { ascending: false, nullsFirst: true });
+  if (error) return show($("#exMsg"), error.message);
+  exams = data;
+  $("#exBody").innerHTML = exams.map((x) => `<tr><td>${esc(x.title)}</td><td>${x.duration_minutes} د</td><td>${fmt(x.opens_at)}<br>${fmt(x.closes_at)}</td><td>${x.max_violations}</td>
+    <td><span class="tag">${x.is_published ? "منشور" : "مخفي"}</span></td>
+    <td class="row"><button class="ghost" data-pub="${x.id}">${x.is_published ? "إخفاء" : "نشر"}</button><button class="ghost" data-edit="${x.id}">تعديل</button><button class="danger" data-del="${x.id}">حذف</button></td></tr>`).join("") || `<tr><td colspan="6">لا توجد امتحانات.</td></tr>`;
+}
+$("#exBody").addEventListener("click", async (e) => {
+  const t = e.target, id = t.dataset.pub || t.dataset.edit || t.dataset.del; if (!id) return;
+  const x = exams.find((v) => v.id === id); let r;
+  if (t.dataset.pub) r = await sb.from("exams").update({ is_published: !x.is_published }).eq("id", id);
+  else if (t.dataset.edit) {
+    const title = prompt("العنوان:", x.title); if (title === null) return;
+    const dur = prompt("المدة بالدقايق:", x.duration_minutes); if (dur === null) return;
+    const mx = prompt("المخالفات المسموحة:", x.max_violations); if (mx === null) return;
+    r = await sb.from("exams").update({ title: title.trim(), duration_minutes: +dur, max_violations: +mx }).eq("id", id);
+  } else { if (!confirm("حذف الامتحان وكل أسئلته؟")) return; r = await sb.from("exams").delete().eq("id", id); if (r.error) r.error.message = "الامتحان له محاولات مسجلة، أخفِه بدل الحذف."; }
+  if (r.error) return show($("#exMsg"), r.error.message);
+  loadExams();
+});
+$("#exForm").addEventListener("submit", async (e) => { e.preventDefault();
+  const { error } = await sb.from("exams").insert({ title: $("#eTitle").value.trim(), duration_minutes: +$("#eDur").value, opens_at: iso($("#eOpen").value), closes_at: iso($("#eClose").value), max_violations: +$("#eMax").value, instructions: $("#eInstr").value.trim() || null, shuffle: $("#eShuf").checked });
+  if (error) return show($("#exMsg"), "تعذر الإنشاء: " + error.message);
+  show($("#exMsg"), "تم إنشاء الامتحان (مخفي لحد ما تنشره).", true); e.target.reset(); $("#eDur").value = 60; $("#eMax").value = 3; loadExams();
+});
+
+/* ---------- الأسئلة ---------- */
+async function initQuestions() { examOpts($("#qExam"), await loadExamList()); loadQuestions(); syncForm(); }
+async function loadQuestions() {
+  const id = $("#qExam").value; if (!id) { $("#qBody2").innerHTML = ""; return; }
+  const { data, error } = await sb.from("questions").select("id,type,body,options,points,position,answer_keys(correct_answer)").eq("exam_id", id).order("position");
+  if (error) return show($("#qMsg"), error.message);
+  questions = data;
+  $("#qBody2").innerHTML = questions.map((q, i) => { const a = q.answer_keys?.correct_answer;
+    const sh = q.type === "tf" ? (a === "true" ? "صح" : "غلط") : q.type === "mcq" ? a : "تصحيح يدوي";
+    return `<tr><td>${i + 1}</td><td>${esc(q.body)}${q.options ? "<br>" + q.options.map((o) => `<span class="tag">${esc(o)}</span>`).join(" ") : ""}</td><td>${TYPES[q.type]}</td><td>${esc(sh)}</td><td>${q.points}</td><td class="row"><button class="ghost" data-edit="${q.id}">تعديل</button><button class="danger" data-del="${q.id}">حذف</button></td></tr>`; }).join("") || `<tr><td colspan="6">لا توجد أسئلة في هذا الامتحان.</td></tr>`;
+}
+const optLines = () => $("#qOpts").value.split("\n").map((l) => l.trim()).filter(Boolean);
+function syncForm() {
+  const t = $("#qType").value; $("#qOptWrap").hidden = t !== "mcq"; $("#qAnsWrap").hidden = t === "essay";
+  const keep = $("#qAns").value;
+  if (t === "tf") $("#qAns").innerHTML = `<option value="true">صح</option><option value="false">غلط</option>`;
+  if (t === "mcq") { $("#qAns").innerHTML = optLines().map((o) => `<option value="${esc(o)}">${esc(o)}</option>`).join(""); if (keep) $("#qAns").value = keep; }
+}
+async function insertQuestion(exam_id, q, position) {
+  const { data, error } = await sb.from("questions").insert({ exam_id, type: q.type, body: q.body, options: q.options, points: q.points, position }).select("id").single();
+  if (error) throw error;
+  if (q.type !== "essay") { const { error: e2 } = await sb.from("answer_keys").insert({ question_id: data.id, correct_answer: q.answer });
+    if (e2) { await sb.from("questions").delete().eq("id", data.id); throw e2; } }
+}
+$("#qType").addEventListener("change", syncForm); $("#qOpts").addEventListener("input", syncForm); $("#qExam").addEventListener("change", loadQuestions);
+$("#qForm").addEventListener("submit", async (e) => { e.preventDefault();
+  const msg = $("#qMsg"), exam_id = $("#qExam").value, type = $("#qType").value;
+  if (!exam_id) return show(msg, "اختار امتحان الأول.");
+  const options = type === "mcq" ? optLines() : null;
+  if (type === "mcq" && (options.length < 2 || new Set(options).size !== options.length)) return show(msg, "الاختياري محتاج اختيارين مختلفين على الأقل.");
+  try { await insertQuestion(exam_id, { type, body: $("#qBody").value.trim(), options, points: +$("#qPts").value, answer: $("#qAns").value }, questions.length + 1); }
+  catch (err) { return show(msg, "تعذرت الإضافة: " + err.message); }
+  show(msg, "تمت إضافة السؤال.", true); $("#qBody").value = ""; $("#qOpts").value = ""; syncForm(); loadQuestions();
+});
+$("#qCsvBtn").addEventListener("click", async () => {
+  const msg = $("#qMsg"), exam_id = $("#qExam").value; if (!exam_id) return show(msg, "اختار امتحان الأول.");
+  const lines = $("#qCsv").value.split("\n").map((l) => l.trim()).filter(Boolean); let ok = 0, pos = questions.length;
+  for (const [i, l] of lines.entries()) {
+    const [type, body, pts, answer, opts] = l.split(/[,،]/).map((x) => x.trim());
+    const options = type === "mcq" && opts ? opts.split("|").map((x) => x.trim()).filter(Boolean) : null;
+    if (!TYPES[type] || !body || (type === "mcq" && (!options || options.length < 2 || !options.includes(answer))) || (type === "tf" && !["true", "false"].includes(answer))) { show(msg, `سطر ${i + 1} غير صحيح. تم استيراد ${ok} سؤال قبله.`); loadQuestions(); return; }
+    try { await insertQuestion(exam_id, { type, body, options, points: +pts || 1, answer }, ++pos); ok++; } catch (err) { show(msg, `سطر ${i + 1}: ${err.message}`); loadQuestions(); return; }
+  }
+  show(msg, `تم استيراد ${ok} سؤال.`, true); $("#qCsv").value = ""; loadQuestions();
+});
+$("#qBody2").addEventListener("click", async (e) => {
+  const t = e.target, id = t.dataset.del || t.dataset.edit; if (!id) return; const q = questions.find((x) => x.id === id);
+  if (t.dataset.del) { if (!confirm("حذف السؤال نهائيًا؟")) return; const { error } = await sb.from("questions").delete().eq("id", id); if (error) return show($("#qMsg"), "السؤال عليه إجابات طلاب، مينفعش يتحذف: " + error.message); }
+  else {
+    const body = prompt("نص السؤال:", q.body); if (body === null) return;
+    const pts = prompt("الدرجة:", q.points); if (pts === null) return;
+    const upd = [sb.from("questions").update({ body: body.trim(), points: +pts }).eq("id", id)];
+    if (q.type !== "essay") { const a = prompt(q.type === "tf" ? "الإجابة الصحيحة (true أو false):" : "الإجابة الصحيحة (لازم تطابق أحد الاختيارات):", q.answer_keys?.correct_answer); if (a === null) return;
+      if ((q.type === "tf" && !["true", "false"].includes(a)) || (q.type === "mcq" && !q.options.includes(a))) return show($("#qMsg"), "إجابة غير صالحة.");
+      upd.push(sb.from("answer_keys").update({ correct_answer: a }).eq("question_id", id)); }
+    const r = await Promise.all(upd); if (r.some((x) => x.error)) return show($("#qMsg"), r.find((x) => x.error).error.message);
+  }
+  loadQuestions();
+});
+
+/* ---------- النتائج والمراقبة ---------- */
+async function initResults() { examOpts($("#rExam"), await loadExamList()); syncShow(); loadResults(); }
+function syncShow() { const x = exams.find((v) => v.id === $("#rExam").value); $("#rShow").checked = !!x?.show_results; }
+const STATUS = (a) => a.status === "submitted" ? "سلّم" : a.status === "locked" ? "اتقفل (مخالفات)" : (a.last_seen && Date.now() - +new Date(a.last_seen) < 45000 ? "🟢 بيمتحن الآن" : "⚠️ منقطع");
+async function loadResults() {
+  const id = $("#rExam").value; if (!id) { $("#rBody").innerHTML = ""; return; }
+  await sb.rpc("finalize_expired");
+  const { data, error } = await sb.from("attempts").select("id,student_id,exam_id,attempt_number,status,score,violation_count,submitted_at,last_seen,profiles(full_name,username,seat_number,grade)").eq("exam_id", id).order("started_at", { ascending: false });
+  if (error) return show($("#rMsg"), error.message);
+  attempts = data;
+  $("#rBody").innerHTML = attempts.map((a) => `<tr><td>${esc(a.profiles?.full_name)}<br><span class="tag" dir="ltr">${esc(a.profiles?.username)}</span></td><td>${esc(a.profiles?.grade)}</td><td>${a.attempt_number}</td><td>${STATUS(a)}</td>
+    <td>${a.status === "in_progress" ? "—" : a.score ?? 0}</td><td>${a.violation_count}</td><td>${fmt(a.submitted_at)}</td>
+    <td class="row"><button class="ghost" data-det="${a.id}">تفاصيل</button><button class="ghost" data-retake="${a.id}">سماح بمحاولة</button></td></tr>`).join("") || `<tr><td colspan="8">لا توجد محاولات بعد.</td></tr>`;
+}
+$("#rExam").addEventListener("change", () => { syncShow(); $("#detail").hidden = true; loadResults(); });
+$("#rRefresh").addEventListener("click", loadResults);
+$("#rShow").addEventListener("change", async (e) => { const { error } = await sb.from("exams").update({ show_results: e.target.checked }).eq("id", $("#rExam").value);
+  if (error) return show($("#rMsg"), error.message); const x = exams.find((v) => v.id === $("#rExam").value); if (x) x.show_results = e.target.checked; show($("#rMsg"), e.target.checked ? "النتيجة ظاهرة للطلاب." : "النتيجة مخفية.", true); });
+$("#rCsv").addEventListener("click", () => {
+  const rows = [["الاسم", "username", "رقم الجلوس", "الصف", "المحاولة", "الحالة", "الدرجة", "المخالفات", "التسليم"]].concat(attempts.map((a) => [a.profiles?.full_name, a.profiles?.username, a.profiles?.seat_number, a.profiles?.grade, a.attempt_number, a.status, a.score ?? "", a.violation_count, a.submitted_at ?? ""]));
+  const csv = "\ufeff" + rows.map((r) => r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })); a.download = "results.csv"; a.click();
+});
+$("#rBody").addEventListener("click", async (e) => {
+  const t = e.target, a = attempts.find((x) => x.id === (t.dataset.det || t.dataset.retake)); if (!a) return;
+  if (t.dataset.retake) { if (!confirm(`السماح لـ ${a.profiles?.full_name} بمحاولة إضافية؟`)) return;
+    const { error } = await sb.from("retake_approvals").insert({ student_id: a.student_id, exam_id: a.exam_id, approved_by: me.id });
+    return show($("#rMsg"), error ? error.message : "تمت الموافقة على محاولة إضافية.", !error); }
+  const [an, vi] = await Promise.all([
+    sb.from("answers").select("id,answer,manual_grade,questions(body,type,points,position,answer_keys(correct_answer))").eq("attempt_id", a.id),
+    sb.from("violations").select("type,created_at").eq("attempt_id", a.id).order("created_at")]);
+  const list = (an.data || []).sort((x, y) => x.questions.position - y.questions.position);
+  $("#detail").innerHTML = `<h2>${esc(a.profiles?.full_name)} — المحاولة ${a.attempt_number}</h2>` +
+    list.map((x) => { const q = x.questions, key = q.answer_keys?.correct_answer, ok = key !== undefined && x.answer === key;
+      return `<div class="ans"><b>${esc(q.body)}</b> <span class="tag">${TYPES[q.type]} / ${q.points}</span><br>إجابة الطالب: ${esc(q.type === "tf" ? (x.answer === "true" ? "صح" : "غلط") : x.answer)}` +
+        (q.type === "essay" ? `<div class="row" style="margin-top:8px"><input type="number" min="0" max="${q.points}" step="0.5" value="${x.manual_grade ?? ""}" id="g${x.id}"><button data-grade="${x.id}">حفظ الدرجة</button></div>` : `<br>${ok ? "✅ صحيحة" : "❌ الصحيحة: " + esc(q.type === "tf" ? (key === "true" ? "صح" : "غلط") : key)}`) + `</div>`; }).join("") +
+    `<h3>سجل المخالفات (${(vi.data || []).length})</h3>` + ((vi.data || []).map((v) => `<div>${fmt(v.created_at)} — ${esc(VT[v.type] || v.type)}</div>`).join("") || "<p>لا توجد مخالفات.</p>");
+  $("#detail").hidden = false; $("#detail").scrollIntoView({ behavior: "smooth" });
+});
+$("#detail").addEventListener("click", async (e) => {
+  const id = e.target.dataset.grade; if (!id) return;
+  const { error } = await sb.rpc("grade_essay", { p_answer: id, p_grade: +$("#g" + id).value || 0 });
+  show($("#rMsg"), error ? error.message : "تم حفظ الدرجة وتحديث المجموع.", !error); if (!error) loadResults();
+});
+
+(async () => { me = await requireRole("admin"); if (!me) return; $("#who").textContent = me.full_name; idleLogout(30); addEventListener("hashchange", route); route(); })();
+</script>
 </body>
 </html>
