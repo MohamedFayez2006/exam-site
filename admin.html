@@ -81,7 +81,7 @@ h2{margin:0 0 14px;font-size:1.2rem}
   </section>
 
   <section id="questions" hidden>
-    <div class="panel"><div class="grid"><div><label for="qExam">الامتحان</label><select id="qExam"></select></div></div></div>
+    <div class="panel"><div class="grid"><div><label for="qExam">الامتحان</label><select id="qExam"></select></div><div><button type="button" class="ghost" id="qExport">تصدير كملف HTML (بدون تسجيل وبيشتغل أوفلاين)</button></div></div></div>
     <form class="panel" id="qForm">
       <h2>إضافة سؤال</h2>
       <div class="grid">
@@ -106,21 +106,89 @@ h2{margin:0 0 14px;font-size:1.2rem}
         <div><label for="rExam">الامتحان</label><select id="rExam"></select></div>
         <div class="row"><button class="ghost" id="rRefresh">تحديث</button><button class="ghost" id="rCsv">تصدير CSV</button></div>
       </div>
-      <div class="row"><label class="chk"><input type="checkbox" id="rShow"> إظهار النتيجة للطلاب في هذا الامتحان</label></div>
+      <div class="row" hidden><label class="chk"><input type="checkbox" id="rShow"> إظهار النتيجة للطلاب في هذا الامتحان</label></div>
       <p class="msg" id="rMsg" role="alert"></p>
-      <div class="tw"><table><thead><tr><th>الطالب</th><th>الصف</th><th>المحاولة</th><th>الحالة</th><th>الدرجة</th><th>مخالفات</th><th>التسليم</th><th></th></tr></thead><tbody id="rBody"></tbody></table></div>
+      <div class="tw"><table><thead><tr><th>الطالب</th><th>الصف</th><th>المحاولة</th><th>الحالة</th><th>الدرجة</th><th>مخالفات</th><th>الدخول</th><th>الخروج</th><th>المحلول</th><th>آخر نشاط</th><th></th></tr></thead><tbody id="rBody"></tbody></table></div>
     </div>
     <div class="panel" id="detail" hidden></div>
   </section>
 </div>
 
+<script type="text/plain" id="examTpl"><!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>__TITLE__</title>
+<style>
+:root{--ink:#12263f;--paper:#f5f7fa;--card:#fff;--line:#d5dde6;--muted:#5b6b7c;--accent:#0a6f66;--good:#0a7d4f;--bad:#b3302f}
+@media(prefers-color-scheme:dark){:root{--ink:#e8eef5;--paper:#0f1a27;--card:#162435;--line:#2b3d52;--muted:#9fb0c2;--accent:#55cfc2;--good:#5fd39a;--bad:#ff8b88}}
+*{box-sizing:border-box}body{margin:0;font-family:"Segoe UI",Tahoma,Arial,sans-serif;background:var(--paper);color:var(--ink);line-height:1.7}
+.w{max-width:760px;margin:0 auto;padding:18px 14px}h1{font-size:1.6rem;margin:0 0 4px}h3{margin:22px 0 10px;color:var(--muted)}
+.q{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:14px;margin-bottom:12px}.b{font-weight:600;margin-bottom:10px;white-space:pre-wrap}
+label.o{display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:6px;margin-bottom:6px;cursor:pointer}label.o input{margin:0}
+textarea{width:100%;font:inherit;color:inherit;background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:10px}
+button{font:inherit;font-weight:700;color:#fff;background:var(--accent);border:0;border-radius:6px;padding:11px 22px;cursor:pointer;margin-inline-end:8px}
+@media(prefers-color-scheme:dark){button{color:#08202a}}
+.s{color:var(--muted);font-size:.9rem}.res{background:var(--card);border:2px solid var(--accent);border-radius:8px;padding:16px;margin:16px 0;text-align:center}.res b{font-size:2.2rem}
+.ok{border-inline-start:5px solid var(--good)}.no{border-inline-start:5px solid var(--bad)}.good{color:var(--good)}.bad{color:var(--bad)}.fix{margin-top:8px}
+@media print{button{display:none}}
+</style></head><body><div class="w">
+<h1 id="t"></h1><p class="s" id="meta"></p><p id="ins" style="white-space:pre-wrap"></p>
+<div id="res"></div><div id="qs"></div><button id="go">إنهاء وعرض النتيجة</button>
+</div>
+<script>
+const D = __DATA__;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const sh = (a) => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const G = [["tf", "أسئلة صح وغلط"], ["mcq", "أسئلة اختيار من متعدد"], ["essay", "أسئلة مقالية"]];
+const show = (v, q) => q.type === "tf" ? (v === "true" ? "صح" : "غلط") : v;
+let order = [];
+$("t").textContent = D.title; $("meta").textContent = D.questions.length + " سؤال"; $("ins").textContent = D.instructions;
+function build() {
+  let n = 0, h = ""; order = [];
+  for (const [t, title] of G) {
+    let it = D.questions.filter((q) => q.type === t); if (!it.length) continue;
+    if (D.shuffle) it = sh(it);
+    h += "<h3>" + title + "</h3>";
+    for (const q of it) {
+      n++; order.push(q); let b = "";
+      if (t === "tf") b = [["true", "صح"], ["false", "غلط"]].map(([v, l]) => `<label class="o"><input type="radio" name="${q.id}" value="${v}">${l}</label>`).join("");
+      if (t === "mcq") b = (D.shuffle ? sh(q.options) : q.options).map((o) => `<label class="o"><input type="radio" name="${q.id}" value="${esc(o)}"><span>${esc(o)}</span></label>`).join("");
+      if (t === "essay") b = `<textarea rows="5" data-q="${q.id}"></textarea>`;
+      h += `<div class="q" id="q${q.id}"><div class="b">${n}. ${esc(q.body)} <span class="s">(${q.points} درجة)</span></div>${b}</div>`;
+    }
+  }
+  $("qs").innerHTML = h; $("res").innerHTML = ""; $("go").hidden = false; window.scrollTo(0, 0);
+}
+function val(q) {
+  if (q.type === "essay") return document.querySelector(`[data-q="${q.id}"]`).value.trim();
+  const r = document.querySelector(`input[name="${q.id}"]:checked`); return r ? r.value : "";
+}
+$("go").onclick = () => {
+  const un = order.filter((q) => !val(q)).length;
+  if (un && !confirm(`فيه ${un} سؤال من غير إجابة. تنهي برضه؟`)) return;
+  let sc = 0, tot = 0;
+  for (const q of order) {
+    const a = val(q), el = $("q" + q.id); let note = "";
+    el.querySelectorAll("input,textarea").forEach((x) => (x.disabled = true));
+    if (q.type === "essay") note = `<div class="fix s">سؤال مقالي: بيتصحح يدويًا ومش داخل في الدرجة.</div>`;
+    else {
+      tot += q.points; const ok = a === q.answer; if (ok) sc += q.points; el.classList.add(ok ? "ok" : "no");
+      note = ok ? `<div class="fix good">✅ إجابة صحيحة</div>` : `<div class="fix bad">❌ ${a ? "إجابتك: " + esc(show(a, q)) : "لم تجب"}<br>الإجابة الصحيحة: ${esc(show(q.answer, q))}</div>`;
+    }
+    el.insertAdjacentHTML("beforeend", note);
+  }
+  $("go").hidden = true;
+  $("res").innerHTML = `<div class="res"><div class="s">نتيجتك</div><b>${sc} / ${tot}</b><div>${tot ? Math.round(sc / tot * 100) : 0}%</div><p><button onclick="build()">إعادة المحاولة</button><button onclick="print()">طباعة</button></p></div>`;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
+build();
+<\/script></body></html></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
 <script src="js/app.js"></script>
 <script>
 const TYPES = { tf: "صح/غلط", mcq: "اختياري", essay: "مقالي" };
 const VT = { tab_hidden: "غيّر التبويب", window_blur: "خرج من النافذة", fullscreen_exit: "خرج من ملء الشاشة", page_left: "حدّث/ترك الصفحة" };
-let me, students = [], exams = [], questions = [], attempts = [], liveIv;
+let me, students = [], exams = [], questions = [], attempts = [], liveIv, totalQ = 0;
 const fmt = (d) => d ? new Date(d).toLocaleString("ar-EG", { dateStyle: "short", timeStyle: "short" }) : "—";
 const iso = (v) => v ? new Date(v).toISOString() : null;
 const examOpts = (sel, list) => { const keep = sel.value; sel.innerHTML = list.map((x) => `<option value="${x.id}">${esc(x.title)}</option>`).join("") || `<option value="">أنشئ امتحان الأول</option>`; if (keep) sel.value = keep; };
@@ -276,6 +344,22 @@ $("#qBody2").addEventListener("click", async (e) => {
   loadQuestions();
 });
 
+/* ---------- تصدير الامتحان كملف HTML أوفلاين ---------- */
+$("#qExport").addEventListener("click", async () => {
+  const id = $("#qExam").value, msg = $("#qMsg");
+  if (!id || !questions.length) return show(msg, "اختار امتحان فيه أسئلة الأول.");
+  const { data: ex, error } = await sb.from("exams").select("title,instructions,shuffle").eq("id", id).single();
+  if (error) return show(msg, error.message);
+  const data = { title: ex.title, instructions: ex.instructions || "", shuffle: !!ex.shuffle,
+    questions: questions.map((q) => ({ id: q.id, type: q.type, body: q.body, options: q.options, points: q.points, answer: q.answer_keys?.correct_answer ?? null })) };
+  const tpl = $("#examTpl").textContent.replace(/<\\\/script>/g, "<\/script>");
+  const html = tpl.replace("__TITLE__", () => esc(ex.title)).replace("__DATA__", () => JSON.stringify(data).replace(/</g, "\\u003c"));
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([html], { type: "text/html;charset=utf-8" }));
+  a.download = "exam-" + ex.title.replace(/[^\p{L}\p{N}]+/gu, "-") + ".html"; a.click();
+  show(msg, "تم تنزيل الملف. الإجابات الصحيحة جواه، فمتستخدمهوش لامتحان رسمي.", true);
+});
+
 /* ---------- النتائج والمراقبة ---------- */
 async function initResults() { examOpts($("#rExam"), await loadExamList()); syncShow(); loadResults(); }
 function syncShow() { const x = exams.find((v) => v.id === $("#rExam").value); $("#rShow").checked = !!x?.show_results; }
@@ -283,19 +367,20 @@ const STATUS = (a) => a.status === "submitted" ? "سلّم" : a.status === "lock
 async function loadResults() {
   const id = $("#rExam").value; if (!id) { $("#rBody").innerHTML = ""; return; }
   await sb.rpc("finalize_expired");
-  const { data, error } = await sb.from("attempts").select("id,student_id,exam_id,attempt_number,status,score,violation_count,submitted_at,last_seen,profiles(full_name,username,seat_number,grade)").eq("exam_id", id).order("started_at", { ascending: false });
+  const c = await sb.from("questions").select("id", { count: "exact", head: true }).eq("exam_id", id); totalQ = c.count ?? 0;
+  const { data, error } = await sb.from("attempts").select("id,student_id,exam_id,attempt_number,status,violation_count,started_at,submitted_at,last_seen,answers(count),attempt_scores(score),profiles(full_name,username,seat_number,grade)").eq("exam_id", id).order("started_at", { ascending: false });
   if (error) return show($("#rMsg"), error.message);
   attempts = data;
   $("#rBody").innerHTML = attempts.map((a) => `<tr><td>${esc(a.profiles?.full_name)}<br><span class="tag" dir="ltr">${esc(a.profiles?.username)}</span></td><td>${esc(a.profiles?.grade)}</td><td>${a.attempt_number}</td><td>${STATUS(a)}</td>
-    <td>${a.status === "in_progress" ? "—" : a.score ?? 0}</td><td>${a.violation_count}</td><td>${fmt(a.submitted_at)}</td>
-    <td class="row"><button class="ghost" data-det="${a.id}">تفاصيل</button><button class="ghost" data-retake="${a.id}">سماح بمحاولة</button></td></tr>`).join("") || `<tr><td colspan="8">لا توجد محاولات بعد.</td></tr>`;
+    <td>${a.status === "in_progress" ? "—" : a.attempt_scores?.score ?? 0}</td><td>${a.violation_count}</td><td>${fmt(a.started_at)}</td><td>${fmt(a.submitted_at)}</td><td>${a.answers?.[0]?.count ?? 0} / ${totalQ}</td><td>${a.status === "in_progress" ? fmt(a.last_seen) : "—"}</td>
+    <td class="row"><button class="ghost" data-det="${a.id}">تفاصيل</button><button class="ghost" data-retake="${a.id}">سماح بمحاولة</button></td></tr>`).join("") || `<tr><td colspan="11">لا توجد محاولات بعد.</td></tr>`;
 }
 $("#rExam").addEventListener("change", () => { syncShow(); $("#detail").hidden = true; loadResults(); });
 $("#rRefresh").addEventListener("click", loadResults);
 $("#rShow").addEventListener("change", async (e) => { const { error } = await sb.from("exams").update({ show_results: e.target.checked }).eq("id", $("#rExam").value);
   if (error) return show($("#rMsg"), error.message); const x = exams.find((v) => v.id === $("#rExam").value); if (x) x.show_results = e.target.checked; show($("#rMsg"), e.target.checked ? "النتيجة ظاهرة للطلاب." : "النتيجة مخفية.", true); });
 $("#rCsv").addEventListener("click", () => {
-  const rows = [["الاسم", "username", "رقم الجلوس", "الصف", "المحاولة", "الحالة", "الدرجة", "المخالفات", "التسليم"]].concat(attempts.map((a) => [a.profiles?.full_name, a.profiles?.username, a.profiles?.seat_number, a.profiles?.grade, a.attempt_number, a.status, a.score ?? "", a.violation_count, a.submitted_at ?? ""]));
+  const rows = [["الاسم", "username", "رقم الجلوس", "الصف", "المحاولة", "الحالة", "الدرجة", "المخالفات", "الدخول", "الخروج", "المحلول"]].concat(attempts.map((a) => [a.profiles?.full_name, a.profiles?.username, a.profiles?.seat_number, a.profiles?.grade, a.attempt_number, a.status, a.attempt_scores?.score ?? "", a.violation_count, a.started_at ?? "", a.submitted_at ?? "", `${a.answers?.[0]?.count ?? 0}/${totalQ}`]));
   const csv = "\ufeff" + rows.map((r) => r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" })); a.download = "results.csv"; a.click();
 });
