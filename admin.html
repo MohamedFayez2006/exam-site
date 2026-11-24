@@ -390,18 +390,20 @@ $("#rBody").addEventListener("click", async (e) => {
     const { error } = await sb.from("retake_approvals").insert({ student_id: a.student_id, exam_id: a.exam_id, approved_by: me.id });
     return show($("#rMsg"), error ? error.message : "تمت الموافقة على محاولة إضافية.", !error); }
   const [an, vi] = await Promise.all([
-    sb.from("answers").select("id,answer,manual_grade,questions(body,type,points,position,answer_keys(correct_answer))").eq("attempt_id", a.id),
+    sb.from("answers").select("id,answer,manual_grade,teacher_comment,questions(body,type,points,position,answer_keys(correct_answer))").eq("attempt_id", a.id),
     sb.from("violations").select("type,created_at").eq("attempt_id", a.id).order("created_at")]);
   const list = (an.data || []).sort((x, y) => x.questions.position - y.questions.position);
   $("#detail").innerHTML = `<h2>${esc(a.profiles?.full_name)} — المحاولة ${a.attempt_number}</h2>` +
     list.map((x) => { const q = x.questions, key = q.answer_keys?.correct_answer, ok = key !== undefined && x.answer === key;
       return `<div class="ans"><b>${esc(q.body)}</b> <span class="tag">${TYPES[q.type]} / ${q.points}</span><br>إجابة الطالب: ${esc(q.type === "tf" ? (x.answer === "true" ? "صح" : "غلط") : x.answer)}` +
-        (q.type === "essay" ? `<div class="row" style="margin-top:8px"><input type="number" min="0" max="${q.points}" step="0.5" value="${x.manual_grade ?? ""}" id="g${x.id}"><button data-grade="${x.id}">حفظ الدرجة</button></div>` : `<br>${ok ? "✅ صحيحة" : "❌ الصحيحة: " + esc(q.type === "tf" ? (key === "true" ? "صح" : "غلط") : key)}`) + `</div>`; }).join("") +
+        (q.type === "essay" ? `<div style="margin-top:8px"><textarea id="c${x.id}" rows="2" placeholder="تعليقك على إجابة الطالب (بيظهر له مع النتيجة لما تعلنها)">${esc(x.teacher_comment ?? "")}</textarea><div class="row" style="margin-top:8px"><input type="number" min="0" max="${q.points}" step="0.5" value="${x.manual_grade ?? ""}" id="g${x.id}"><span class="hint" style="margin:0">من ${q.points}</span><button data-grade="${x.id}">حفظ الدرجة والتعليق</button></div></div>` : `<br>${ok ? "✅ صحيحة" : "❌ الصحيحة: " + esc(q.type === "tf" ? (key === "true" ? "صح" : "غلط") : key)}`) + `</div>`; }).join("") +
     `<h3>سجل المخالفات (${(vi.data || []).length})</h3>` + ((vi.data || []).map((v) => `<div>${fmt(v.created_at)} — ${esc(VT[v.type] || v.type)}</div>`).join("") || "<p>لا توجد مخالفات.</p>");
   $("#detail").hidden = false; $("#detail").scrollIntoView({ behavior: "smooth" });
 });
 $("#detail").addEventListener("click", async (e) => {
   const id = e.target.dataset.grade; if (!id) return;
+  const c = await sb.from("answers").update({ teacher_comment: $("#c" + id).value.trim() || null }).eq("id", id);
+  if (c.error) return show($("#rMsg"), c.error.message);
   const { error } = await sb.rpc("grade_essay", { p_answer: id, p_grade: +$("#g" + id).value || 0 });
   show($("#rMsg"), error ? error.message : "تم حفظ الدرجة وتحديث المجموع.", !error); if (!error) loadResults();
 });
