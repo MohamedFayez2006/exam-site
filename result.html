@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>نتيجتي | منصة الامتحانات</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+.wrap{max-width:760px;margin:0 auto;padding:18px 14px}
+h1{font-size:1.5rem;margin:0 0 12px}
+.res{background:var(--card);border:2px solid var(--accent);border-radius:8px;padding:16px;margin:12px 0 20px;text-align:center}
+.res b{font-size:2.2rem}
+.q{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:14px;margin-bottom:12px}
+.q.ok{border-inline-start:5px solid var(--accent)}.q.no{border-inline-start:5px solid var(--danger)}
+.b{font-weight:600;margin-bottom:8px;white-space:pre-wrap}
+.s{color:var(--muted);font-size:.9rem}.good{color:var(--accent-dark);font-weight:600}.bad{color:var(--danger);font-weight:600}
+.ans{white-space:pre-wrap}
+a.back{display:inline-block;margin-bottom:14px}
+</style>
+</head>
+<body>
+<div class="wrap"><a class="back" href="student.html">← الرجوع للقائمة</a><div id="box">جاري التحميل...</div></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="js/app.js"></script>
+<script>
+const ansText = (v, q) => q.type === "tf" ? (v === "true" ? "صح" : "غلط") : v;
+(async () => {
+  const me = await requireRole("student");
+  if (!me) return;
+  const id = new URLSearchParams(location.search).get("a");
+  const { data, error } = await sb.rpc("my_result", { p_attempt: id });
+  const box = $("#box");
+  if (error) return (box.textContent = /not_released/.test(error.message) ? "النتيجة لسه ما اتعلنتش." : "تعذر تحميل النتيجة.");
+  const pct = data.total ? Math.round((data.score / data.total) * 100) : 0;
+  const pending = data.items.filter((q) => q.type === "essay" && q.grade == null).length;
+  box.innerHTML = `<h1>${esc(data.title)}</h1><div class="res"><div class="s">نتيجتك</div><b>${data.score} / ${data.total}</b><div>${pct}%</div>` +
+    (pending ? `<div class="s">فيه ${pending} سؤال مقالي لسه ما اتصححش، والنتيجة هتتحدث بعد تصحيحه.</div>` : "") + `</div>` +
+    data.items.map((q, i) => {
+      const body = q.type === "essay"
+        ? `<div class="ans">إجابتك: ${q.answer ? esc(q.answer) : "لم تجب"}</div><div class="s">${q.grade != null ? `الدرجة: ${q.grade} / ${q.points}` : "لسه ما اتصححش"}</div>`
+        : q.is_correct ? `<div class="good">✅ إجابة صحيحة</div>`
+        : `<div class="bad">❌ ${q.answer ? "إجابتك: " + esc(ansText(q.answer, q)) : "لم تجب"}<br>الإجابة الصحيحة: ${esc(ansText(q.correct, q))}</div>`;
+      return `<div class="q ${q.type === "essay" ? "" : q.is_correct ? "ok" : "no"}"><div class="b">${i + 1}. ${esc(q.body)} <span class="s">(${q.points} درجة)</span></div>${body}</div>`;
+    }).join("");
+})();
+</script>
+</body>
+</html>
