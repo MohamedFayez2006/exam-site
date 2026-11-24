@@ -38,7 +38,7 @@ const fmt = (d) => d ? new Date(d).toLocaleString("ar-EG", { dateStyle: "medium"
   await sb.rpc("finalize_expired");
   const [ex, at, ap] = await Promise.all([
     sb.from("exams").select("*").eq("is_published", true).order("opens_at", { nullsFirst: true }),
-    sb.from("attempts").select("exam_id,status,score").eq("student_id", me.id),
+    sb.from("attempts").select("id,exam_id,status,started_at").eq("student_id", me.id).order("started_at"),
     sb.from("retake_approvals").select("exam_id").eq("student_id", me.id).eq("used", false),
   ]);
   if (ex.error) return ($("#list").textContent = "تعذر تحميل الامتحانات: " + ex.error.message);
@@ -55,7 +55,7 @@ const fmt = (d) => d ? new Date(d).toLocaleString("ar-EG", { dateStyle: "medium"
     else if (!mine.length) act = `<span class="tag">${x.opens_at && now < +new Date(x.opens_at) ? "لسه ما فتحش" : "اتقفل"}</span>`;
     else {
       const last = mine[mine.length - 1];
-      act = `<span class="tag">تم التسليم</span> ` + (x.show_results && last.score != null ? `<b>النتيجة: ${last.score}</b>` : `<span class="tag">النتيجة لم تُعلن</span>`);
+      act = `<span class="tag">تم التسليم</span> ` + (x.show_results ? `<a class="btn" href="result.html?a=${last.id}">عرض النتيجة والحل</a>` : `<span class="tag">النتيجة لم تُعلن</span>`);
     }
     return `<div class="card"><h2>${esc(x.title)}</h2><p>المدة: ${x.duration_minutes} دقيقة</p><p>يفتح: ${fmt(x.opens_at)} — يقفل: ${fmt(x.closes_at)}</p><div class="act">${act}</div></div>`;
   }).join("") || "<p>مفيش امتحانات متاحة دلوقتي.</p>";
