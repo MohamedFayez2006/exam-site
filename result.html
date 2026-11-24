@@ -16,6 +16,7 @@ h1{font-size:1.5rem;margin:0 0 12px}
 .b{font-weight:600;margin-bottom:8px;white-space:pre-wrap}
 .s{color:var(--muted);font-size:.9rem}.good{color:var(--accent-dark);font-weight:600}.bad{color:var(--danger);font-weight:600}
 .ans{white-space:pre-wrap}
+.cmt{margin-top:8px;padding:8px 10px;border-radius:6px;background:var(--paper);white-space:pre-wrap}
 a.back{display:inline-block;margin-bottom:14px}
 </style>
 </head>
@@ -39,7 +40,7 @@ const ansText = (v, q) => q.type === "tf" ? (v === "true" ? "صح" : "غلط") :
     (pending ? `<div class="s">فيه ${pending} سؤال مقالي لسه ما اتصححش، والنتيجة هتتحدث بعد تصحيحه.</div>` : "") + `</div>` +
     data.items.map((q, i) => {
       const body = q.type === "essay"
-        ? `<div class="ans">إجابتك: ${q.answer ? esc(q.answer) : "لم تجب"}</div><div class="s">${q.grade != null ? `الدرجة: ${q.grade} / ${q.points}` : "لسه ما اتصححش"}</div>`
+        ? `<div class="ans">إجابتك: ${q.answer ? esc(q.answer) : "لم تجب"}</div><div class="s">${q.grade != null ? `الدرجة: ${q.grade} / ${q.points}` : "لسه ما اتصححش"}</div>${q.comment ? `<div class="cmt">💬 تعليق المصحح: ${esc(q.comment)}</div>` : ""}`
         : q.is_correct ? `<div class="good">✅ إجابة صحيحة</div>`
         : `<div class="bad">❌ ${q.answer ? "إجابتك: " + esc(ansText(q.answer, q)) : "لم تجب"}<br>الإجابة الصحيحة: ${esc(ansText(q.correct, q))}</div>`;
       return `<div class="q ${q.type === "essay" ? "" : q.is_correct ? "ok" : "no"}"><div class="b">${i + 1}. ${esc(q.body)} <span class="s">(${q.points} درجة)</span></div>${body}</div>`;
