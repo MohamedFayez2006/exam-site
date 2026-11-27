@@ -63,6 +63,7 @@ h3{margin:22px 0 10px;color:var(--muted)}
 <script>
 const examId = new URLSearchParams(location.search).get("e");
 const device = sessionStorage.dev || (sessionStorage.dev = crypto.randomUUID());
+const gr = (v) => { const t = norm(v); return /(1|١|اول)/.test(t) ? "1" : /(2|٢|تان|ثان)/.test(t) ? "2" : t; };
 const norm = (s) => String(s ?? "").replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه").replace(/\s+/g, " ").trim().toLowerCase();
 const ERR = { exam_closed: "الامتحان مقفول حاليًا.", no_attempts_left: "استنفدت محاولتك. محتاج موافقة المشرف على محاولة إضافية.", time_over: "انتهى وقت الامتحان وتم تسليم إجاباتك.", exam_not_available: "الامتحان غير متاح.", not_allowed: "حسابك غير مفعّل لهذا الامتحان." };
 let me, exam, att, token, expAt = 0, active = false, lastV = 0, pending = {}, timerIv, hbIv, saveT;
@@ -88,7 +89,7 @@ const shuffle = (a, r) => { a = [...a]; for (let i = a.length - 1; i > 0; i--) {
 $("#vForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const msg = $("#vMsg");
-  if (norm($("#vName").value) !== norm(me.full_name) || norm($("#vGrade").value) !== norm(me.grade))
+  if (norm($("#vName").value) !== norm(me.full_name) || gr($("#vGrade").value) !== gr(me.grade))
     return show(msg, "البيانات مش مطابقة لسجلك. راجع الاسم والصف.");
   if (document.fullscreenEnabled) { try { await document.documentElement.requestFullscreen(); } catch {} 
     if (!document.fullscreenElement) return show(msg, "لازم تسمح بملء الشاشة عشان تبدأ."); }
