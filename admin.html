@@ -47,11 +47,11 @@ h2{margin:0 0 14px;font-size:1.2rem}
         <div><label for="sName">الاسم الكامل</label><input id="sName" required></div>
         <div><label for="sUser">اسم المستخدم (إنجليزي)</label><input id="sUser" dir="ltr" required></div>
         <div><label for="sSeat">رقم الجلوس</label><input id="sSeat" dir="ltr" required></div>
-        <div><label for="sGrade">الصف</label><input id="sGrade" required></div>
+        <div><label for="sGrade">الصف</label><select id="sGrade" required><option value="الصف الأول">الصف الأول</option><option value="الصف الثاني">الصف الثاني</option></select></div>
       </div>
       <button type="submit">إضافة</button>
       <details style="margin-top:14px"><summary>إضافة مجموعة (سطر لكل طالب)</summary>
-        <textarea id="bulk" rows="5" dir="auto" placeholder="الاسم, username, رقم الجلوس, الصف"></textarea>
+        <textarea id="bulk" rows="5" dir="auto" placeholder="الاسم, username, رقم الجلوس, الصف (1 أو 2)"></textarea>
         <p class="hint" style="margin:6px 0 10px">مثال: انور احمد, anwar.ahmed, 1001, الصف الأول</p>
         <button type="button" id="bulkBtn">إضافة المجموعة</button></details>
       <p class="msg" id="stMsg" role="alert"></p>
@@ -71,6 +71,7 @@ h2{margin:0 0 14px;font-size:1.2rem}
         <div><label for="eOpen">يفتح في</label><input id="eOpen" type="datetime-local"></div>
         <div><label for="eClose">يقفل في</label><input id="eClose" type="datetime-local"></div>
         <div><label for="eMax">المخالفات المسموحة</label><input id="eMax" type="number" min="1" value="3" required></div>
+        <div><label for="eGrade">يظهر لـ</label><select id="eGrade"><option value="">كل الصفوف</option><option value="الصف الأول">الصف الأول</option><option value="الصف الثاني">الصف الثاني</option></select></div>
       </div>
       <label for="eInstr">تعليمات الامتحان (اختياري)</label><textarea id="eInstr" rows="3"></textarea>
       <div class="row" style="margin:12px 0"><label class="chk"><input type="checkbox" id="eShuf" checked> خلط الأسئلة والاختيارات</label></div>
@@ -191,6 +192,7 @@ const VT = { tab_hidden: "غيّر التبويب", window_blur: "خرج من ا
 let me, students = [], exams = [], questions = [], attempts = [], liveIv, totalQ = 0;
 const fmt = (d) => d ? new Date(d).toLocaleString("ar-EG", { dateStyle: "short", timeStyle: "short" }) : "—";
 const iso = (v) => v ? new Date(v).toISOString() : null;
+const normGrade = (v) => { const t = String(v ?? "").replace(/[أإآ]/g, "ا"); if (/(1|١|اول)/.test(t)) return "الصف الأول"; if (/(2|٢|تان|ثان)/.test(t)) return "الصف الثاني"; return null; };
 const examOpts = (sel, list) => { const keep = sel.value; sel.innerHTML = list.map((x) => `<option value="${x.id}">${esc(x.title)}</option>`).join("") || `<option value="">أنشئ امتحان الأول</option>`; if (keep) sel.value = keep; };
 async function loadExamList() { const { data } = await sb.from("exams").select("id,title,show_results").order("title"); exams = data || []; return exams; }
 
@@ -236,8 +238,9 @@ async function addStudents(list) {
 $("#stForm").addEventListener("submit", async (e) => { e.preventDefault();
   await addStudents([{ full_name: $("#sName").value, username: $("#sUser").value, seat_number: $("#sSeat").value, grade: $("#sGrade").value }]); e.target.reset(); });
 $("#bulkBtn").addEventListener("click", async () => {
-  const list = $("#bulk").value.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => { const [full_name, username, seat_number, grade] = l.split(/[,،]/).map((x) => x.trim()); return { full_name, username, seat_number, grade }; });
+  const list = $("#bulk").value.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => { const [full_name, username, seat_number, grade] = l.split(/[,،]/).map((x) => x.trim()); return { full_name, username, seat_number, grade: normGrade(grade) }; });
   if (!list.length) return show($("#stMsg"), "اكتب سطر واحد على الأقل.");
+  if (list.some((s) => !s.grade)) return show($("#stMsg"), "الصف في كل سطر لازم يكون 1 أو 2 (أو الأول/التاني).");
   await addStudents(list); $("#bulk").value = "";
 });
 $("#stSearch").addEventListener("input", renderStudents);
@@ -247,7 +250,8 @@ $("#stBody").addEventListener("click", async (e) => {
   try {
     if (t.dataset.edit) {
       const full_name = prompt("الاسم الكامل:", s.full_name); if (full_name === null) return;
-      const grade = prompt("الصف:", s.grade); if (grade === null) return;
+      const gr = prompt("الصف (اكتب 1 أو 2):", s.grade === "الصف الثاني" ? "2" : "1"); if (gr === null) return;
+      const grade = normGrade(gr); if (!grade) throw new Error("الصف لازم يكون 1 أو 2.");
       const seat = prompt("رقم الجلوس (غيّره لو عاوز، وده هيغيّر الباسورد):", s.seat_number); if (seat === null) return;
       await callFn({ action: "update", id, full_name, grade, seat_number: seat === s.seat_number ? undefined : seat });
     } else if (t.dataset.tog) await callFn({ action: "update", id, is_active: !s.is_active });
@@ -261,7 +265,7 @@ async function loadExams() {
   const { data, error } = await sb.from("exams").select("*").order("opens_at", { ascending: false, nullsFirst: true });
   if (error) return show($("#exMsg"), error.message);
   exams = data;
-  $("#exBody").innerHTML = exams.map((x) => `<tr><td>${esc(x.title)}</td><td>${x.duration_minutes} د</td><td>${fmt(x.opens_at)}<br>${fmt(x.closes_at)}</td><td>${x.max_violations}</td>
+  $("#exBody").innerHTML = exams.map((x) => `<tr><td>${esc(x.title)}<br><span class="tag">${esc(x.grade || "كل الصفوف")}</span></td><td>${x.duration_minutes} د</td><td>${fmt(x.opens_at)}<br>${fmt(x.closes_at)}</td><td>${x.max_violations}</td>
     <td><span class="tag">${x.is_published ? "منشور" : "مخفي"}</span></td>
     <td class="row"><button class="ghost" data-pub="${x.id}">${x.is_published ? "إخفاء" : "نشر"}</button><button class="ghost" data-edit="${x.id}">تعديل</button><button class="danger" data-del="${x.id}">حذف</button></td></tr>`).join("") || `<tr><td colspan="6">لا توجد امتحانات.</td></tr>`;
 }
@@ -273,13 +277,15 @@ $("#exBody").addEventListener("click", async (e) => {
     const title = prompt("العنوان:", x.title); if (title === null) return;
     const dur = prompt("المدة بالدقايق:", x.duration_minutes); if (dur === null) return;
     const mx = prompt("المخالفات المسموحة:", x.max_violations); if (mx === null) return;
-    r = await sb.from("exams").update({ title: title.trim(), duration_minutes: +dur, max_violations: +mx }).eq("id", id);
+    const gp = prompt("يظهر لأي صف؟ اكتب 1 أو 2، أو سيبها فاضية لكل الصفوف:", x.grade === "الصف الأول" ? "1" : x.grade === "الصف الثاني" ? "2" : ""); if (gp === null) return;
+    const grade = gp.trim() ? normGrade(gp) : null; if (gp.trim() && !grade) return show($("#exMsg"), "الصف لازم يكون 1 أو 2.");
+    r = await sb.from("exams").update({ title: title.trim(), duration_minutes: +dur, max_violations: +mx, grade }).eq("id", id);
   } else { if (!confirm("حذف الامتحان وكل أسئلته؟")) return; r = await sb.from("exams").delete().eq("id", id); if (r.error) r.error.message = "الامتحان له محاولات مسجلة، أخفِه بدل الحذف."; }
   if (r.error) return show($("#exMsg"), r.error.message);
   loadExams();
 });
 $("#exForm").addEventListener("submit", async (e) => { e.preventDefault();
-  const { error } = await sb.from("exams").insert({ title: $("#eTitle").value.trim(), duration_minutes: +$("#eDur").value, opens_at: iso($("#eOpen").value), closes_at: iso($("#eClose").value), max_violations: +$("#eMax").value, instructions: $("#eInstr").value.trim() || null, shuffle: $("#eShuf").checked });
+  const { error } = await sb.from("exams").insert({ title: $("#eTitle").value.trim(), duration_minutes: +$("#eDur").value, opens_at: iso($("#eOpen").value), closes_at: iso($("#eClose").value), max_violations: +$("#eMax").value, instructions: $("#eInstr").value.trim() || null, shuffle: $("#eShuf").checked, grade: $("#eGrade").value || null });
   if (error) return show($("#exMsg"), "تعذر الإنشاء: " + error.message);
   show($("#exMsg"), "تم إنشاء الامتحان (مخفي لحد ما تنشره).", true); e.target.reset(); $("#eDur").value = 60; $("#eMax").value = 3; loadExams();
 });
